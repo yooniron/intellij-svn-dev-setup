@@ -146,6 +146,29 @@ intellij-svn-dev-setup/
 | [inquirer](https://github.com/SBoudrias/Inquirer.js) | ^8.2.7 | 대화형 CLI 프롬프트 |
 | [ora](https://github.com/sindresorhus/ora) | ^5.4.1 | 비동기 작업 스피너 |
 
+## Contributors
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/yooniron">
+        <img src="https://github.com/yooniron.png" width="80" /><br />
+        <sub><b>yooniron</b></sub>
+      </a><br />
+      <sub>Project Owner</sub>
+    </td>
+    <td align="center">
+      <a href="https://github.com/taehwanis">
+        <img src="https://github.com/taehwanis.png" width="80" /><br />
+        <sub><b>taehwanis</b></sub>
+      </a><br />
+      <sub>Contributor</sub>
+    </td>
+  </tr>
+</table>
+
+---
+
 ## 빌드 (배포용 exe)
 
 `intellij-svn-dev-setup.exe`는 Node.js 없이도 실행 가능한 단독 바이너리입니다.
