@@ -168,12 +168,25 @@ function waitExit() {
         console.log(chalk.gray(`  총 ${totalItems}개 항목 확인\n`));
 
         const multiBar = new cliProgress.MultiBar({
-            format: `${chalk.cyan("SVN")} |{bar}| {percentage}% · {value}/{total}`,
+            format: `${chalk.cyan("SVN")} |{bar}| {percentage}% · {value}/{total}  ${chalk.gray("[L] 로그 토글")}`,
             barCompleteChar: "█", barIncompleteChar: "░", hideCursor: true
         });
         const svnBar = multiBar.create(totalItems, 0);
 
         await new Promise((resolve, reject) => {
+            let showLog = true;
+
+            if (process.stdin.isTTY) {
+                process.stdin.setRawMode(true);
+                process.stdin.resume();
+                process.stdin.on("data", key => {
+                    if (key.toString().toLowerCase() === "l") {
+                        showLog = !showLog;
+                        multiBar.log(chalk.yellow(`[LOG ${showLog ? "ON" : "OFF"}]\n`));
+                    }
+                });
+            }
+
             const svn = spawn("svn", ["checkout", svnUrl, targetDir]);
             let processed = 0, remainder = "";
             svn.stdout.on("data", d => {
@@ -184,12 +197,18 @@ function waitExit() {
                         processed++;
                         svnBar.update(Math.min(processed, totalItems));
                     }
-                    multiBar.log(chalk.gray(line.trim()) + "\n");
+                    if (showLog) {
+                        multiBar.log(chalk.gray(line.trim()) + "\n");
+                    }
                 });
             });
             svn.on("close", code => {
                 svnBar.update(totalItems);
                 multiBar.stop();
+                if (process.stdin.isTTY) {
+                    process.stdin.setRawMode(false);
+                    process.stdin.pause();
+                }
                 code === 0 ? resolve() : reject(new Error("SVN 실패"));
             });
         });
