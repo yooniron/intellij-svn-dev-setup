@@ -1,0 +1,7 @@
+{
+  "svnRootUrl": "svn://127.0.0.1/",
+  "defaultProjectName": "MY_PROJECT",
+  "defaultProjectDir": "C:/MY_PROJECT",
+  "defaultTomcatHome": "C:/tomcat/apache-tomcat-8.5.91",
+  "defaultPort": 8080
+}

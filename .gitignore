@@ -1,0 +1,17 @@
+# Dependency
+node_modules/
+
+# Build output
+dist/
+*.exe
+
+# Local Config (민감정보 보호)
+# config/config.json
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
