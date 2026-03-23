@@ -11,6 +11,8 @@ dist/
 # IDE
 .idea/
 .vscode/
+!template/.idea/
+!template/.idea/**
 
 # OS
 .DS_Store
