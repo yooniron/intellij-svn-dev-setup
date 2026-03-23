@@ -234,8 +234,24 @@ function waitExit() {
         });
         bar1.stop();
 
+        // 파일명 치환
+        const copiedFiles = getAllFiles(targetDir);
+
+        copiedFiles.forEach((file) => {
+            const dir = path.dirname(file);
+            const base = path.basename(file);
+
+            if(base.includes("${PROJECT_NAME}")) {
+                const newName = base.replaceAll("${PROJECT_NAME}", vars.PROJECT_NAME);
+                const newPath = path.join(dir, newName);
+
+                fs.renameSync(file, newPath);
+            }
+        })
+
         // STEP 3 VARIABLE INJECT
         console.log(chalk.yellow("\n⚙️ 환경 설정 중...\n"));
+
         const files = getAllFiles(targetDir);
         const bar2 = createBar("Inject");
         bar2.start(files.length, 0);
