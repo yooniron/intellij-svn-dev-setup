@@ -1,0 +1,41 @@
+<component name="ProjectRunConfigurationManager">
+    <configuration
+            default="false"
+            name="${PROJECT_NAME}"
+            type="#com.intellij.j2ee.web.tomcat.TomcatRunConfigurationFactory"
+            factoryName="Local"
+            ALTERNATIVE_JRE_ENABLED="false">
+
+        <option name="OPEN_IN_BROWSER" value="false"/>
+
+        <option name="COMMON_VM_ARGUMENTS"
+                value="-Xms256m -Xmx4096m -XX:MetaspaceSize=512m -XX:MaxMetaspaceSize=1024m -XX:+UseG1GC -XX:ParallelGCThreads=8 -Dfile.encoding=UTF-8 -Dlog4jdbc.drivers=com.tmax.tibero.jdbc.TbDriver"/>
+
+        <!-- 포트 -->
+        <option name="HTTP_PORT" value="${SERVER_PORT}"/>
+        <port value="${SERVER_PORT}"/>
+
+        <!-- Tomcat 경로 -->
+        <option name="TOMCAT_LOCATION" value="${TOMCAT_HOME}"/>
+
+        <!-- DEPLOYMENT -->
+        <deployment>
+            <artifact name="${PROJECT_NAME}:Web exploded">
+                <settings>
+                    <option name="CONTEXT_PATH" value="/"/>
+                </settings>
+            </artifact>
+        </deployment>
+
+        <predefined_log_file enabled="true" id="Tomcat"/>
+        <predefined_log_file enabled="true" id="Tomcat Catalina"/>
+
+        <method v="2">
+            <option name="Make" enabled="true"/>
+            <option name="BuildArtifacts" enabled="true">
+                <artifact name="${PROJECT_NAME}:Web exploded"/>
+            </option>
+        </method>
+
+    </configuration>
+</component>
