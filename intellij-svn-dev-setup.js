@@ -133,6 +133,12 @@ function waitExit() {
         {name: "port", message: "⚡ 서비스 포트:", default: `${cfg.defaultPort}`}
     ]);
 
+    if(!fs.existsSync(answers.tomcatHome)) {
+        console.log(chalk.red("❌ Tomcat 경로가 올바르지 않습니다."));
+        await waitExit();
+        process.exit(1);
+    }
+
     const targetDir = path.join(answers.projectHome, answers.projectName);
     const svnUrl = `${cfg.svnRootUrl}${answers.projectName}`;
     const vars = {
