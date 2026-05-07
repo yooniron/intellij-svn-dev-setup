@@ -5,6 +5,9 @@ node_modules/
 dist/
 *.exe
 
+# Logs
+logs/
+
 # Local Config (민감정보 보호)
 # config/config.json
 
