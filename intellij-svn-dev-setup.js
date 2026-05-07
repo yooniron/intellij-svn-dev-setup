@@ -5,6 +5,36 @@ const inquirer = require("inquirer");
 const chalk = require("chalk");
 const cliProgress = require("cli-progress");
 
+async function waitExit() {
+    console.log(chalk.gray("\n" + "-".repeat(60)));
+    await inquirer.prompt([
+        {
+            type: "input",
+            name: "exit",
+            message: chalk.cyan("======> 종료하려면 아무 키나 누르세요(Press any key to exit)")
+        }
+    ]);
+    process.exit(0);
+}
+
+
+/**
+ * GLOBAL ERROR HANDLER
+ */
+process.on("uncaughtException", async (err) => {
+    console.log("\n" + chalk.bgRed.white(" UNCAUGHT EXCEPTION "));
+    console.log(chalk.red(err.stack || err.message));
+
+    await waitExit();
+});
+
+process.on("unhandledRejection", async (err) => {
+    console.log("\n" + chalk.bgRed.white(" UNHANDLED REJECTION "));
+    console.log(chalk.red(err?.stack || err));
+
+    await waitExit();
+});
+
 // pkg 빌드 환경 대응 경로 설정
 const isPkg = typeof process.pkg !== 'undefined';
 const ROOT_PATH = isPkg ? path.dirname(process.execPath) : __dirname;
@@ -12,12 +42,6 @@ const ROOT_PATH = isPkg ? path.dirname(process.execPath) : __dirname;
 const cfgPath = path.join(ROOT_PATH, "config/config.json");
 const templateDir = path.join(ROOT_PATH, "template");
 
-if (!fs.existsSync(cfgPath)) {
-    console.log(chalk.red("❌ config/config.json 없음"));
-    // 빌드 후 바로 꺼지는 것 방지
-    setTimeout(() => process.exit(1), 3000);
-}
-const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf-8"));
 
 /**
  * Util 함수들
@@ -27,20 +51,19 @@ function log(line) {
 }
 
 function getAllFiles(dir, arr = []) {
+
     if (!fs.existsSync(dir)) return arr;
 
     const files = fs.readdirSync(dir);
     files.forEach(file => {
         const full = path.join(dir, file);
-        try {
-            if (fs.lstatSync(full).isDirectory()) {
-                getAllFiles(full, arr);
-            } else {
-                arr.push(full);
-            }
-        } catch (e) {
+        if (fs.lstatSync(full).isDirectory()) {
+            getAllFiles(full, arr);
+        } else {
+            arr.push(full);
         }
     });
+
     return arr;
 }
 
@@ -71,16 +94,22 @@ function initUI() {
     console.log("-".repeat(60));
 }
 
+/**
+ * Intellij RunConfig 수정
+ * @param targetDir
+ * @param port
+ */
+async function fixRunConfig(targetDir, port) {
 
-function fixRunConfig(targetDir, port) {
     const runDir = path.join(targetDir, ".idea", "runConfigurations");
+
     if (!fs.existsSync(runDir)) {
-        console.log("⚠️ runConfigurations 폴더 없음 (template 확인 필요)");
-        return;
+        throw new Error("⚠️ runConfigurations 폴더 없음 (template 확인 필요)");
     }
 
     const files = fs.readdirSync(runDir).filter(f => f.endsWith(".xml"));
     files.forEach(file => {
+
         const full = path.join(runDir, file);
         let xml = fs.readFileSync(full, "utf8");
 
@@ -89,12 +118,12 @@ function fixRunConfig(targetDir, port) {
 
         // 기존에 <server-settings> 태그가 있으면 내부를 갈아끼우고, 없으면 통째로 삽입
         const serverSettingsBody = `
-                <server-settings>
-                  <option name="BASE_DIRECTORY_NAME" value="AUTO_GENERATED_ID" />
-                  <option name="HTTP_PORT" value="${port}" />
-                  <option name="JMX_PORT" value="${parseInt(port) + 100}" />
-                </server-settings>
-        `;
+                        <server-settings>
+                          <option name="BASE_DIRECTORY_NAME" value="AUTO_GENERATED_ID" />
+                          <option name="HTTP_PORT" value="${port}" />
+                          <option name="JMX_PORT" value="${parseInt(port) + 100}" />
+                        </server-settings>
+                `;
 
         if (xml.includes("<server-settings>")) {
             // 기존 <server-settings>...</server-settings> 구간을 통째로 치환
@@ -106,48 +135,66 @@ function fixRunConfig(targetDir, port) {
 
         fs.writeFileSync(full, xml, "utf8");
     });
-    console.log(`✔ RunConfig 수정 완료 (Port: ${port})`);
-}
 
-function waitExit() {
-    console.log(chalk.gray("\n" + "-".repeat(60)));
-    return inquirer.prompt([
-        {
-            type: "input",
-            name: "exit",
-            message: chalk.cyan("======> 종료하려면 아무 키나 누르세요(Press any key to exit)")
-        }
-    ]);
+    console.log(`✔ RunConfig 수정 완료 (Port: ${port})`);
 }
 
 /**
  * main
  */
 (async function main() {
-    initUI();
-
-    const answers = await inquirer.prompt([
-        {name: "projectName", message: "📦 프로젝트명 (SVN):", default: `${cfg.defaultProjectName}`},
-        {name: "projectHome", message: "🛠️️ 설치할 프로젝트 경로:", default: `${cfg.defaultProjectDir}`},
-        {name: "tomcatHome", message: "🛠️ Tomcat 경로:", default: `${cfg.defaultTomcatHome}`},
-        {name: "port", message: "⚡ 서비스 포트:", default: `${cfg.defaultPort}`}
-    ]);
-
-    if(!fs.existsSync(answers.tomcatHome)) {
-        console.log(chalk.red("❌ Tomcat 경로가 올바르지 않습니다."));
-        await waitExit();
-        process.exit(1);
-    }
-
-    const targetDir = path.join(answers.projectHome, answers.projectName);
-    const svnUrl = `${cfg.svnRootUrl}${answers.projectName}`;
-    const vars = {
-        PROJECT_NAME: answers.projectName,
-        TOMCAT_HOME: answers.tomcatHome,
-        SERVER_PORT: String(answers.port),
-    };
-
     try {
+        initUI();
+
+        // Config Load Check
+        if(!fs.existsSync(cfgPath)) {
+            throw new Error(`config/config.json 파일을 찾을 수 없습니다. (경로: ${cfgPath})`)
+        }
+
+        if (!fs.existsSync(templateDir)) {
+            throw new Error(
+                `Template 폴더 없음: ${templateDir}`
+            );
+        }
+
+        const cfg = JSON.parse(fs.readFileSync(cfgPath), 'utf-8');
+
+        const answers = await inquirer.prompt([
+            {
+                name: "projectName",
+                message: "📦 프로젝트명 (SVN):",
+                default: `${cfg.defaultProjectName}`
+            },
+            {
+                name: "projectHome",
+                message: "🛠️️ 설치할 프로젝트 경로:",
+                default: `${cfg.defaultProjectDir}`
+            },
+            {
+                name: "tomcatHome",
+                message: "🛠️ Tomcat 경로:",
+                default: `${cfg.defaultTomcatHome}`
+            },
+            {
+                name: "port",
+                message: "⚡ 서비스 포트:",
+                default: `${cfg.defaultPort}`
+            }
+        ]);
+
+        if (!fs.existsSync(answers.tomcatHome)) {
+            console.log(chalk.red("❌ Tomcat 경로가 올바르지 않습니다."));
+            await waitExit();
+        }
+
+        const targetDir = path.join(answers.projectHome, answers.projectName);
+        const svnUrl = `${cfg.svnRootUrl}${answers.projectName}`;
+        const vars = {
+            PROJECT_NAME: answers.projectName,
+            TOMCAT_HOME: answers.tomcatHome.replace(/\\/g, "/"), // 윈도우 경로 대응
+            SERVER_PORT: String(answers.port),
+        };
+
         // STEP 1 SVN
         console.log(chalk.yellow("\n📡 SVN Checkout 중...\n"));
         console.log(chalk.gray("  파일 목록 스캔 중..."));
@@ -221,11 +268,13 @@ function waitExit() {
 
         // STEP 2 TEMPLATE COPY
         console.log(chalk.yellow("\n📁 Template 복사 중...\n"));
+
         const tplFiles = getAllFiles(templateDir);
         const bar1 = createBar("Copy");
         bar1.start(tplFiles.length, 0);
 
         tplFiles.forEach((file, i) => {
+
             const rel = path.relative(templateDir, file);
             const dest = path.join(targetDir, rel);
             fs.mkdirSync(path.dirname(dest), {recursive: true});
@@ -241,7 +290,7 @@ function waitExit() {
             const dir = path.dirname(file);
             const base = path.basename(file);
 
-            if(base.includes("${PROJECT_NAME}")) {
+            if (base.includes("${PROJECT_NAME}")) {
                 const newName = base.replaceAll("${PROJECT_NAME}", vars.PROJECT_NAME);
                 const newPath = path.join(dir, newName);
 
@@ -254,10 +303,11 @@ function waitExit() {
 
         const files = getAllFiles(targetDir);
         const bar2 = createBar("Inject");
-        bar2.start(files.length, 0);
-        const TEXT_EXT = [".xml", ".properties", ".json", ".jsp", ".js"];
+        const TEXT_EXT = [".xml", ".properties", ".json", ".jsp", ".js", ".iml"];
 
+        bar2.start(files.length, 0);
         files.forEach((file, i) => {
+
             if (TEXT_EXT.includes(path.extname(file))) {
                 let content = fs.readFileSync(file, "utf8");
                 Object.entries(vars).forEach(([k, v]) => {
@@ -265,13 +315,14 @@ function waitExit() {
                 });
                 fs.writeFileSync(file, content, "utf8");
             }
+
             bar2.update(i + 1);
         });
         bar2.stop();
 
         // STEP 4 IntelliJ FIX
         console.log(chalk.yellow("\n🧠 IntelliJ RunConfig Fix...\n"));
-        fixRunConfig(targetDir, String(answers.port));
+        await fixRunConfig(targetDir, String(answers.port));
 
         console.log("\n" + "=".repeat(60));
         console.log(chalk.green.bold("🎉 INSTALL COMPLETE"));
