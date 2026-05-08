@@ -5,6 +5,71 @@ const inquirer = require("inquirer");
 const chalk = require("chalk");
 const cliProgress = require("cli-progress");
 
+
+
+// pkg 빌드 환경 대응 경로 설정
+const isPkg = typeof process.pkg !== 'undefined';
+const ROOT_PATH = isPkg ? path.dirname(process.execPath) : __dirname;
+
+const cfgPath = path.join(ROOT_PATH, "config/config.json");
+const templateDir = path.join(ROOT_PATH, "template");
+
+const logDir = path.join(ROOT_PATH, "logs");
+const logFile = path.join(logDir, "intellij-svn-dev-setup-" + now(true) + ".log");
+
+
+function now(isFileNm) {
+    const d = new Date();
+
+    const yyyy = d.getFullYear();
+    const MM = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    const ss = String(d.getSeconds()).padStart(2, "0");
+
+    return isFileNm ? `${yyyy}-${MM}-${dd}` : `${yyyy}-${MM}-${dd} ${hh}:${mm}:${ss}`;
+}
+
+
+/**
+ * .log 기록
+ * @param level
+ * @param message
+ * @param err : stackTrace
+ */
+function writeLogs(level, message, err= null) {
+
+    const timestamp = now();
+
+    // 콘솔출력용
+    const consoleLine = `[${now()}] [${level}] ${message}\n`;
+
+    // log 파일 저장용
+    let fileLine = `\n[${timestamp}] [${level}] ${message}`
+
+    if(err) fileLine += `\n${err.stack || err}`;
+
+    // 터미널 출력
+    switch (level) {
+        case "ERROR":
+            console.log(chalk.red(consoleLine));
+            break;
+
+        case "WARN":
+            console.log(chalk.yellow(consoleLine));
+            break;
+
+        default:
+            console.log(chalk.gray(consoleLine));
+            break;
+    }
+
+    fs.appendFileSync(logFile, fileLine, 'utf8');
+}
+
+
+
 async function waitExit() {
     console.log(chalk.gray("\n" + "-".repeat(60)));
     await inquirer.prompt([
@@ -22,33 +87,17 @@ async function waitExit() {
  * GLOBAL ERROR HANDLER
  */
 process.on("uncaughtException", async (err) => {
-    console.log("\n" + chalk.bgRed.white(" UNCAUGHT EXCEPTION "));
-    console.log(chalk.red(err.stack || err.message));
-
+    writeLogs("ERROR", " UNCAUGHT EXCEPTION ", err?.stack || err.message);
     await waitExit();
 });
 
 process.on("unhandledRejection", async (err) => {
-    console.log("\n" + chalk.bgRed.white(" UNHANDLED REJECTION "));
-    console.log(chalk.red(err?.stack || err));
-
+    writeLogs("ERROR", " UNHANDLED REJECTION ", err?.stack || err.message);
     await waitExit();
 });
 
-// pkg 빌드 환경 대응 경로 설정
-const isPkg = typeof process.pkg !== 'undefined';
-const ROOT_PATH = isPkg ? path.dirname(process.execPath) : __dirname;
-
-const cfgPath = path.join(ROOT_PATH, "config/config.json");
-const templateDir = path.join(ROOT_PATH, "template");
 
 
-/**
- * Util 함수들
- */
-function log(line) {
-    process.stdout.write(chalk.gray(line + "\n"));
-}
 
 function getAllFiles(dir, arr = []) {
 
@@ -104,6 +153,7 @@ async function fixRunConfig(targetDir, port) {
     const runDir = path.join(targetDir, ".idea", "runConfigurations");
 
     if (!fs.existsSync(runDir)) {
+        writeLogs("ERROR", "⚠️ runConfigurations 폴더 없음 (template 확인 필요)");
         throw new Error("⚠️ runConfigurations 폴더 없음 (template 확인 필요)");
     }
 
@@ -136,7 +186,7 @@ async function fixRunConfig(targetDir, port) {
         fs.writeFileSync(full, xml, "utf8");
     });
 
-    console.log(`✔ RunConfig 수정 완료 (Port: ${port})`);
+    console.log(chalk.gray("RunConfig 수정 완료 (Port: ${port})\n"));
 }
 
 /**
@@ -146,15 +196,18 @@ async function fixRunConfig(targetDir, port) {
     try {
         initUI();
 
+        // logs 폴더 없으면 생성
+        if(!fs.existsSync(logDir)) {
+            fs.mkdirSync(logDir, { recursive: true });
+        }
+
         // Config Load Check
         if(!fs.existsSync(cfgPath)) {
             throw new Error(`config/config.json 파일을 찾을 수 없습니다. (경로: ${cfgPath})`)
         }
 
         if (!fs.existsSync(templateDir)) {
-            throw new Error(
-                `Template 폴더 없음: ${templateDir}`
-            );
+            throw new Error(`Template 폴더 없음: ${templateDir}`);
         }
 
         const cfg = JSON.parse(fs.readFileSync(cfgPath), 'utf-8');
@@ -183,7 +236,7 @@ async function fixRunConfig(targetDir, port) {
         ]);
 
         if (!fs.existsSync(answers.tomcatHome)) {
-            console.log(chalk.red("❌ Tomcat 경로가 올바르지 않습니다."));
+            writeLogs("ERROR", "❌ Tomcat 경로가 올바르지 않습니다.");
             await waitExit();
         }
 
@@ -330,8 +383,11 @@ async function fixRunConfig(targetDir, port) {
         console.log("👉 IntelliJ에서 열고 바로 실행 가능");
         console.log("=".repeat(60) + "\n");
 
+        writeLogs("INFO", "SVN DEV SETUP COMPLETE");
+
     } catch (e) {
-        console.log("\n" + chalk.bgRed.white(" ⚠️ ERROR ") + " " + chalk.red(e.message));
+        console.log("\n" + chalk.bgRed.white(" ⚠️ ERROR "));
+        writeLogs("ERROR", e.message, e);
     } finally {
         await waitExit();
     }
